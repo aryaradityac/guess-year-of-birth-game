@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Tebak Tahun Lahir (Chinese Remainder Theorem)</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --error-color: #ef4444;
+            --success-color: #10b981;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            font-size: 1.8rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.secondary {
+            background-color: #6b7280;
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        button.secondary:hover {
+            background-color: #4b5563;
+        }
+
+        #moduli-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
+
+        .result-box {
+            margin-top: 2rem;
+            padding: 1rem;
+            border-radius: 8px;
+            background-color: #eef2ff;
+            border: 1px solid #c7d2fe;
+            display: none;
+        }
+
+        .result-box.error {
+            background-color: #fef2f2;
+            border-color: #fecaca;
+            color: var(--error-color);
+        }
+
+        .result-title {
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: var(--primary-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #e5e7eb;
+        }
+
+        .note {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-top: 5px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔮 Tebak Tahun Lahir</h1>
+    <p style="text-align:center; margin-bottom: 20px;">Menggunakan <i>Chinese Remainder Theorem</i></p>
+
+    <div class="form-group">
+        <label for="yearInput">Tahun Lahir Sasaran (x):</label>
+        <input type="number" id="yearInput" placeholder="Contoh: 2003" min="1000" max="3000">
+    </div>
+
+    <div class="form-group">
+        <label for="numGuesses">Jumlah Pembagi (n):</label>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="numGuesses" placeholder="Minimal 3" min="2" value="3">
+            <button class="secondary" onclick="generateInputs()" style="width: auto;">Set</button>
+        </div>
+        <p class="note">Klik "Set" untuk memunculkan kolom input bilangan.</p>
+    </div>
+
+    <div id="moduli-inputs-section" style="display:none;">
+        <label>Masukkan Bilangan Relatif Prima (q):</label>
+        <div id="moduli-container"></div>
+        <p class="note" id="prime-warning" style="color: var(--error-color); display: none;">Bilangan harus saling relatif prima!</p>
+        
+        <button onclick="calculateCRT()">Tebak Tahun Lahir!</button>
+    </div>
+
+    <div id="result" class="result-box">
+        <div class="result-title">Hasil Perhitungan:</div>
+        <p id="result-text"></p>
+        
+        <details>
+            <summary style="cursor: pointer; color: var(--primary-color); margin-top:10px;">Lihat Rincian Perhitungan (Matematis)</summary>
+            <div id="calculation-steps"></div>
+        </details>
+    </div>
+</div>
+
+<script>
+    // Fungsi GCD (Greatest Common Divisor)
+    function gcd(a, b) {
+        if (!b) return a;
+        return gcd(b, a % b);
+    }
+
+    // Fungsi Cek Relatif Prima Pairwise
+    function checkRelativePrime(q) {
+        for (let i = 0; i < q.length; i++) {
+            for (let j = i + 1; j < q.length; j++) {
+                if (gcd(q[i], q[j]) !== 1) {
+                    return { valid: false, conflict: [q[i], q[j]] };
+                }
+            }
+        }
+        return { valid: true };
+    }
+
+    // Extended Euclidean Algorithm untuk mencari Invers Modulo
+    // Setara dengan pow(Q[i], -1, q[i]) di Python
+    function modInverse(a, m) {
+        let m0 = m;
+        let y = 0;
+        let x = 1;
+
+        if (m === 1) return 0;
+
+        while (a > 1) {
+            // q is quotient
+            let q = Math.floor(a / m);
+            let t = m;
+
+            // m is remainder now, process same as Euclid's algo
+            m = a % m;
+            a = t;
+            t = y;
+
+            // Update y and x
+            y = x - q * y;
+            x = t;
+        }
+
+        // Make x positive
+        if (x < 0) x += m0;
+
+        return x;
+    }
+
+    // Generate Input Fields
+    function generateInputs() {
+        const n = document.getElementById('numGuesses').value;
+        const container = document.getElementById('moduli-container');
+        const section = document.getElementById('moduli-inputs-section');
+        const resultBox = document.getElementById('result');
+        
+        if (n < 2) {
+            alert("Jumlah tebakan minimal 2 (disarankan 3 atau lebih).");
+            return;
+        }
+
+        container.innerHTML = '';
+        resultBox.style.display = 'none';
+        section.style.display = 'block';
+
+        for (let i = 0; i < n; i++) {
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.placeholder = `q[${i+1}]`;
+            input.className = 'moduli-input';
+            // Default values for demo purposes if n=3
+            if(n==3 && i==0) input.value = 7;
+            if(n==3 && i==1) input.value = 11;
+            if(n==3 && i==2) input.value = 13;
+            
+            container.appendChild(input);
+        }
+    }
+
+    // Main Logic
+    function calculateCRT() {
+        const year = parseInt(document.getElementById('yearInput').value);
+        const inputElements = document.querySelectorAll('.moduli-input');
+        const resultBox = document.getElementById('result');
+        const resultText = document.getElementById('result-text');
+        const warning = document.getElementById('prime-warning');
+        
+        // Reset
+        resultBox.className = 'result-box';
+        warning.style.display = 'none';
+
+        if (!year) {
+            alert("Silakan masukkan tahun lahir terlebih dahulu.");
+            return;
+        }
+
+        // Ambil nilai q dari input
+        let q = [];
+        for (let input of inputElements) {
+            if (!input.value) {
+                alert("Semua bilangan q harus diisi.");
+                return;
+            }
+            q.push(parseInt(input.value));
+        }
+
+        // Cek Relatif Prima
+        const check = checkRelativePrime(q);
+        if (!check.valid) {
+            warning.innerText = `Error: Bilangan ${check.conflict[0]} dan ${check.conflict[1]} tidak relatif prima (FPB != 1).`;
+            warning.style.display = 'block';
+            return;
+        }
+
+        // 1. Hitung Kali (M)
+        let M = BigInt(1);
+        for (let val of q) {
+            M *= BigInt(val);
+        }
+
+        // Warning jika M < Year (Solusi tidak unik di range tahun)
+        if (M < BigInt(year)) {
+            alert(`Peringatan: Hasil kali modulus (${M}) lebih kecil dari tahun lahir. Prediksi mungkin salah.`);
+        }
+
+        // 2. Hitung b (Sisa bagi), Q, dan r (Invers)
+        let stepsHtml = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>q<sub>i</sub></th>
+                        <th>b<sub>i</sub> (Sisa)</th>
+                        <th>Q<sub>i</sub> (M/q<sub>i</sub>)</th>
+                        <th>r<sub>i</sub> (Inv)</th>
+                        <th>Partial</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        let p_sum = BigInt(0);
+        let n = q.length;
+
+        for (let i = 0; i < n; i++) {
+            let qi = BigInt(q[i]);
+            let bi = BigInt(year) % qi;      // Sisa bagi
+            let Qi = M / qi;                 // M dibagi qi
+            
+            // Mencari inverse modulo: Qi * ri ≡ 1 (mod qi)
+            // Kita perlu konversi BigInt ke Number untuk fungsi modInverse (asumsi input aman utk Number JS)
+            let ri = BigInt(modInverse(Number(Qi % qi), Number(qi))); 
+
+            let partial = bi * Qi * ri;
+            p_sum += partial;
+
+            stepsHtml += `
+                <tr>
+                    <td>${qi}</td>
+                    <td>${bi}</td>
+                    <td>${Qi}</td>
+                    <td>${ri}</td>
+                    <td>${partial}</td>
+                </tr>
+            `;
+        }
+
+        stepsHtml += `</tbody></table>`;
+        stepsHtml += `<p><strong>Total Sum (p):</strong> ${p_sum}</p>`;
+        stepsHtml += `<p><strong>Modulus Total (M):</strong> ${M}</p>`;
+
+        // 3. Final Calculation (Modulo reduction)
+        // Python code: while(p > 2025) p -= kali. 
+        // Better approach: p % M. If result < year range, add M until logical.
+        
+        let final_p = p_sum % M;
+        
+        // Logika Python asli mencoba menurunkan p, tapi karena kita pakai % M,
+        // kita mungkin perlu menyesuaikan jika hasilnya 0 (jarang terjadi di konteks tahun) 
+        // atau memastikan sesuai range.
+        
+        // Namun, agar persis logika Python "while > 2025":
+        // Kita pakai p_sum asli.
+        let python_logic_p = p_sum;
+        // Kita batasi loop agar tidak hang jika user input aneh
+        let safety = 0;
+        while (python_logic_p > 2025n && safety < 10000) {
+            python_logic_p -= M;
+            safety++;
+        }
+
+        resultText.innerHTML = `
+            Tahun Lahir yang ditebak: <strong>${python_logic_p}</strong> <br>
+            <span style="font-size:0.9em; color:${python_logic_p == BigInt(year) ? 'green' : 'red'}">
+                (${python_logic_p == BigInt(year) ? 'Akurat! Sesuai input.' : 'Tidak sesuai (Cek Modulus Anda)'})
+            </span>
+        `;
+        
+        document.getElementById('calculation-steps').innerHTML = stepsHtml;
+        resultBox.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
